@@ -9,7 +9,7 @@ Este repositório contém o código-fonte e a documentação técnica para um ro
 
 ---
 
-🔧 Configuração de Hardware
+# 🔧 Configuração de Hardware
 Pinagem Resumida
 Motores: Pinos 11, 12 (Esq) e 2, 3 (Dir).
 
