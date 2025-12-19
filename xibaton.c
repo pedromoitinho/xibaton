@@ -1,95 +1,128 @@
-// --- PINOS DOS MOTORES ---
-const int motorEsqA = 11; 
-const int motorEsqB = 12;
-const int motorDirA = 2;
-const int motorDirB = 3;
+// ================== MOTORES (L298N) ==================
+#define IN1 9
+#define IN2 10
+#define IN3 11
+#define IN4 12
 
-// --- PINOS DOS SENSORES ULTRASSÔNICOS (OPONENTE) ---
-const int trigFrente = 4; const int echoFrente = 5;
+// ===== VELOCIDADES (REDUZIDAS E ESTÁVEIS) =====
+int velAtaque = 150;
+int velBusca  = 120;
+int velRe     = 130;
+int velGiro   = 110;
 
-// --- PINOS DOS SENSORES INFRAVERMELHOS (BORDA DA ARENA) ---
-const int irCentro = A2;
-const int irEsq = A3;
-const int irDir = A4;
+// ================= ULTRASSÔNICO =====================
+#define TRIG 4
+#define ECHO 5
 
-// Ajuste esse valor conforme a cor da sua arena (0 a 1023)
-// No Tinkercad, a linha branca costuma dar valores baixos.
-const int limiteLinha = 500; 
+// ================= SENSORES DE LINHA =================
+#define LINHA_F A2   // Frontal
+#define LINHA_E A3   // Esquerdo
+#define LINHA_D A4   // Direito
 
+// ================= SETUP =============================
 void setup() {
-  pinMode(motorEsqA, OUTPUT); pinMode(motorEsqB, OUTPUT);
-  pinMode(motorDirA, OUTPUT); pinMode(motorDirB, OUTPUT);
-  
-  pinMode(trigFrente, OUTPUT); pinMode(echoFrente, INPUT);
-  
-  // Sensores IR são de entrada
-  pinMode(irCentro, INPUT);
-  pinMode(irEsq, INPUT);
-  pinMode(irDir, INPUT);
-  
+
+  pinMode(IN1, OUTPUT); pinMode(IN2, OUTPUT);
+  pinMode(IN3, OUTPUT); pinMode(IN4, OUTPUT);
+
+  pinMode(TRIG, OUTPUT);
+  pinMode(ECHO, INPUT);
+
+  pinMode(LINHA_F, INPUT);
+  pinMode(LINHA_E, INPUT);
+  pinMode(LINHA_D, INPUT);
+
   Serial.begin(9600);
 }
 
-void loop() {
-  // 1. VERIFICA SE ESTÁ NA BORDA (PRIORIDADE MÁXIMA)
-  if (analogRead(irCentro) < limiteLinha || analogRead(irEsq) < limiteLinha || analogRead(irDir) < limiteLinha) {
-    recuarEDesviar();
-  } 
-  // 2. SE NÃO ESTIVER CAINDO, PROCURA O OPONENTE
-  else {
-    long dist = lerDistancia(trigFrente, echoFrente);
-    
-    if (dist < 50) { // Oponente detectado a menos de 50cm
-      frente(); // ATACAR!
-    } else {
-      girarProcurando(); // Fica girando para achar o alvo
-    }
-  }
-  delay(20);
+// ================= MOVIMENTOS ========================
+void frente(int v) {
+  analogWrite(IN1, 0);
+  analogWrite(IN2, v);
+  analogWrite(IN3, 0);
+  analogWrite(IN4, v);
 }
 
-// --- FUNÇÕES DE LÓGICA ---
-
-void recuarEDesviar() {
-  tras();
-  delay(800);
-  girarDireita();
-  delay(500);
+void tras(int v) {
+  analogWrite(IN1, v);
+  analogWrite(IN2, 0);
+  analogWrite(IN3, v);
+  analogWrite(IN4, 0);
 }
 
-long lerDistancia(int trig, int echo) {
-  digitalWrite(trig, LOW);
-  delayMicroseconds(2);
-  digitalWrite(trig, HIGH);
-  delayMicroseconds(10);
-  digitalWrite(trig, LOW);
-  return pulseIn(echo, HIGH) * 0.034 / 2;
+void direita(int v) {
+  analogWrite(IN1, 0);
+  analogWrite(IN2, v);
+  analogWrite(IN3, v);
+  analogWrite(IN4, 0);
 }
 
-// --- MOVIMENTOS BÁSICOS ---
-
-void frente() {
-  digitalWrite(motorEsqA, HIGH); digitalWrite(motorEsqB, LOW);
-  digitalWrite(motorDirA, HIGH); digitalWrite(motorDirB, LOW);
-}
-
-void tras() {
-  digitalWrite(motorEsqA, LOW); digitalWrite(motorEsqB, HIGH);
-  digitalWrite(motorDirA, LOW); digitalWrite(motorDirB, HIGH);
-}
-
-void girarDireita() {
-  digitalWrite(motorEsqA, HIGH); digitalWrite(motorEsqB, LOW);
-  digitalWrite(motorDirA, LOW);  digitalWrite(motorDirB, HIGH);
-}
-
-void girarProcurando() {
-  // Gira devagar para encontrar o oponente
-  digitalWrite(motorEsqA, HIGH); digitalWrite(motorEsqB, LOW);
-  digitalWrite(motorDirA, LOW);  digitalWrite(motorDirB, LOW);
+void esquerda(int v) {
+  analogWrite(IN1, v);
+  analogWrite(IN2, 0);
+  analogWrite(IN3, 0);
+  analogWrite(IN4, v);
 }
 
 void parar() {
-  digitalWrite(motorEsqA, LOW); digitalWrite(motorEsqB, LOW);
-  digitalWrite(motorDirA, LOW); digitalWrite(motorDirB, LOW);
+  analogWrite(IN1, 0); analogWrite(IN2, 0);
+  analogWrite(IN3, 0); analogWrite(IN4, 0);
+}
+
+// ================= DISTÂNCIA =========================
+long distanciaCM() {
+  digitalWrite(TRIG, LOW);
+  delayMicroseconds(2);
+  digitalWrite(TRIG, HIGH);
+  delayMicroseconds(10);
+  digitalWrite(TRIG, LOW);
+
+  long tempo = pulseIn(ECHO, HIGH, 25000);
+  if (tempo == 0) return 0;
+  return tempo / 58;
+}
+
+// ================= LOOP PRINCIPAL ====================
+void loop() {
+
+  int f = digitalRead(LINHA_F);
+  int e = digitalRead(LINHA_E);
+  int d = digitalRead(LINHA_D);
+  long dist = distanciaCM();
+
+  // -------- PRIORIDADE 1: BORDA --------
+  if (f == 0) {
+    tras(velRe);
+    delay(300);
+    direita(velGiro);
+    delay(250);
+  }
+  else if (e == 0) {
+    tras(velRe);
+    delay(250);
+    direita(velGiro);
+    delay(200);
+  }
+  else if (d == 0) {
+    tras(velRe);
+    delay(250);
+    esquerda(velGiro);
+    delay(200);
+  }
+
+  // -------- PRIORIDADE 2: ATAQUE --------
+  else if (dist > 0 && dist <= 25) {
+    frente(velAtaque);
+  }
+
+  // -------- PRIORIDADE 3: AJUSTE --------
+  else if (dist > 25 && dist <= 45) {
+    direita(velBusca);
+  }
+
+  // -------- PRIORIDADE 4: BUSCA --------
+  else {
+    direita(velBusca);
+    delay(80);   // giro suave
+  }
 }
