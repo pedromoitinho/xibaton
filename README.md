@@ -13,7 +13,7 @@ Este repositório contém o código-fonte e a documentação técnica para um ro
 Pinagem Resumida
 Motores: Pinos 11, 12 (Esq) e 2, 3 (Dir).
 
-Ultrassônico: Trig 4, Echo 5.
+Ultrassônico: Trig 2 e Echo 3 (Esq), Trig 4 e Echo 5 (Frente), Trig 6 e Echo 7 (Dir).
 
 Infravermelhos: A2 (Centro), A3 (Esq), A4 (Dir).
 
