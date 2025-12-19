@@ -1,128 +1,134 @@
-// ================== MOTORES (L298N) ==================
-#define IN1 9
-#define IN2 10
-#define IN3 11
-#define IN4 12
+// ================= MOTORES (L298N) =================
+const int motorEsqA = 11;
+const int motorEsqB = 12;
+const int motorDirA = 2;
+const int motorDirB = 3;
 
-// ===== VELOCIDADES (REDUZIDAS E ESTÁVEIS) =====
-int velAtaque = 150;
-int velBusca  = 120;
-int velRe     = 130;
-int velGiro   = 110;
+// ================= ULTRASSÔNICOS (HC-SR04) =================
+const int trigEsq    = 2;  const int echoEsq    = 3;
+const int trigFrente = 4;  const int echoFrente = 5;
+const int trigDir    = 6;  const int echoDir    = 7;
 
-// ================= ULTRASSÔNICO =====================
-#define TRIG 4
-#define ECHO 5
+// ================= IR HW-511 (AO) =================
+const int irCentro = A2;
+const int irEsq    = A3;
+const int irDir    = A4;
 
-// ================= SENSORES DE LINHA =================
-#define LINHA_F A2   // Frontal
-#define LINHA_E A3   // Esquerdo
-#define LINHA_D A4   // Direito
+const int limiteLinha = 500;                 // ajuste com base na sua arena
+const unsigned long echoTimeout = 30000UL;   // evita travar no pulseIn
 
-// ================= SETUP =============================
 void setup() {
+  pinMode(motorEsqA, OUTPUT); pinMode(motorEsqB, OUTPUT);
+  pinMode(motorDirA, OUTPUT); pinMode(motorDirB, OUTPUT);
 
-  pinMode(IN1, OUTPUT); pinMode(IN2, OUTPUT);
-  pinMode(IN3, OUTPUT); pinMode(IN4, OUTPUT);
+  pinMode(trigEsq, OUTPUT);    pinMode(echoEsq, INPUT);
+  pinMode(trigFrente, OUTPUT); pinMode(echoFrente, INPUT);
+  pinMode(trigDir, OUTPUT);    pinMode(echoDir, INPUT);
 
-  pinMode(TRIG, OUTPUT);
-  pinMode(ECHO, INPUT);
-
-  pinMode(LINHA_F, INPUT);
-  pinMode(LINHA_E, INPUT);
-  pinMode(LINHA_D, INPUT);
+  pinMode(irCentro, INPUT);
+  pinMode(irEsq, INPUT);
+  pinMode(irDir, INPUT);
 
   Serial.begin(9600);
 }
 
-// ================= MOVIMENTOS ========================
-void frente(int v) {
-  analogWrite(IN1, 0);
-  analogWrite(IN2, v);
-  analogWrite(IN3, 0);
-  analogWrite(IN4, v);
+void loop() {
+  int vC = analogRead(irCentro);
+  int vL = analogRead(irEsq);
+  int vR = analogRead(irDir);
+
+  bool bordaCentro = (vC < limiteLinha);
+  bool bordaEsq    = (vL < limiteLinha);
+  bool bordaDir    = (vR < limiteLinha);
+
+  // 1) BORDA (prioridade máxima)
+  if (bordaCentro || bordaEsq || bordaDir) {
+    recuarEDesviar(bordaEsq, bordaDir, bordaCentro);
+  } else {
+    // 2) PROCURA/ATAQUE (3 ultrassônicos)
+    long dF = lerDistancia(trigFrente, echoFrente);
+    long dLft = lerDistancia(trigEsq, echoEsq);
+    long dRgt = lerDistancia(trigDir, echoDir);
+
+    if (dF != -1 && dF < 50) {
+      frente();
+    } else if (dLft != -1 && dLft < 50) {
+      girarEsquerda();
+    } else if (dRgt != -1 && dRgt < 50) {
+      girarDireita();
+    } else {
+      girarProcurando();
+    }
+  }
+
+  delay(20);
 }
 
-void tras(int v) {
-  analogWrite(IN1, v);
-  analogWrite(IN2, 0);
-  analogWrite(IN3, v);
-  analogWrite(IN4, 0);
+// ================= LÓGICA DE BORDA =================
+void recuarEDesviar(bool bordaEsq, bool bordaDir, bool bordaCentro) {
+  tras();
+  delay(700);
+  parar();
+  delay(50);
+
+  // Se pegou borda do lado esquerdo, vira para a direita (e vice-versa)
+  if (bordaEsq && !bordaDir) {
+    girarDireita();
+    delay(500);
+  } else if (bordaDir && !bordaEsq) {
+    girarEsquerda();
+    delay(500);
+  } else {
+    // centro ou ambos: escolha um lado padrão
+    girarDireita();
+    delay(550);
+  }
+
+  parar();
+  delay(50);
 }
 
-void direita(int v) {
-  analogWrite(IN1, 0);
-  analogWrite(IN2, v);
-  analogWrite(IN3, v);
-  analogWrite(IN4, 0);
+// ================= ULTRASSÔNICO =================
+long lerDistancia(int trig, int echo) {
+  digitalWrite(trig, LOW);
+  delayMicroseconds(2);
+  digitalWrite(trig, HIGH);
+  delayMicroseconds(10);
+  digitalWrite(trig, LOW);
+
+  unsigned long dur = pulseIn(echo, HIGH, echoTimeout);
+  if (dur == 0) return -1;
+
+  return (long)(dur * 0.034 / 2.0); // cm
 }
 
-void esquerda(int v) {
-  analogWrite(IN1, v);
-  analogWrite(IN2, 0);
-  analogWrite(IN3, 0);
-  analogWrite(IN4, v);
+// ================= MOVIMENTOS (ON/OFF) =================
+void frente() {
+  digitalWrite(motorEsqA, HIGH); digitalWrite(motorEsqB, LOW);
+  digitalWrite(motorDirA, HIGH); digitalWrite(motorDirB, LOW);
+}
+
+void tras() {
+  digitalWrite(motorEsqA, LOW); digitalWrite(motorEsqB, HIGH);
+  digitalWrite(motorDirA, LOW); digitalWrite(motorDirB, HIGH);
+}
+
+void girarDireita() {
+  digitalWrite(motorEsqA, HIGH); digitalWrite(motorEsqB, LOW);
+  digitalWrite(motorDirA, LOW);  digitalWrite(motorDirB, HIGH);
+}
+
+void girarEsquerda() {
+  digitalWrite(motorEsqA, LOW);  digitalWrite(motorEsqB, HIGH);
+  digitalWrite(motorDirA, HIGH); digitalWrite(motorDirB, LOW);
+}
+
+void girarProcurando() {
+  // giro contínuo (busca agressiva)
+  girarDireita();
 }
 
 void parar() {
-  analogWrite(IN1, 0); analogWrite(IN2, 0);
-  analogWrite(IN3, 0); analogWrite(IN4, 0);
-}
-
-// ================= DISTÂNCIA =========================
-long distanciaCM() {
-  digitalWrite(TRIG, LOW);
-  delayMicroseconds(2);
-  digitalWrite(TRIG, HIGH);
-  delayMicroseconds(10);
-  digitalWrite(TRIG, LOW);
-
-  long tempo = pulseIn(ECHO, HIGH, 25000);
-  if (tempo == 0) return 0;
-  return tempo / 58;
-}
-
-// ================= LOOP PRINCIPAL ====================
-void loop() {
-
-  int f = digitalRead(LINHA_F);
-  int e = digitalRead(LINHA_E);
-  int d = digitalRead(LINHA_D);
-  long dist = distanciaCM();
-
-  // -------- PRIORIDADE 1: BORDA --------
-  if (f == 0) {
-    tras(velRe);
-    delay(300);
-    direita(velGiro);
-    delay(250);
-  }
-  else if (e == 0) {
-    tras(velRe);
-    delay(250);
-    direita(velGiro);
-    delay(200);
-  }
-  else if (d == 0) {
-    tras(velRe);
-    delay(250);
-    esquerda(velGiro);
-    delay(200);
-  }
-
-  // -------- PRIORIDADE 2: ATAQUE --------
-  else if (dist > 0 && dist <= 25) {
-    frente(velAtaque);
-  }
-
-  // -------- PRIORIDADE 3: AJUSTE --------
-  else if (dist > 25 && dist <= 45) {
-    direita(velBusca);
-  }
-
-  // -------- PRIORIDADE 4: BUSCA --------
-  else {
-    direita(velBusca);
-    delay(80);   // giro suave
-  }
+  digitalWrite(motorEsqA, LOW); digitalWrite(motorEsqB, LOW);
+  digitalWrite(motorDirA, LOW); digitalWrite(motorDirB, LOW);
 }
